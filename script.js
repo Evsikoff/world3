@@ -2,6 +2,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const ROW_LENGTHS = [2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2];
     const gameBoard = document.getElementById('game-board');
 
+    let isIframe = false;
+    let rebusId = null;
+    let isRebusSolved = false;
+    let hasStarted = false;
+
+    function sendToParent(message) {
+        if (isIframe && window.parent) {
+            window.parent.postMessage(message, "*");
+        }
+    }
+
+    window.addEventListener("message", (event) => {
+        const { type, rebusId: id, solved, progress } = event.data || {};
+        if (type !== "rebus:init") return;
+
+        isIframe = true;
+        rebusId = id;
+        isRebusSolved = solved;
+
+        if (isRebusSolved) {
+            // If already solved, show the victory modal but hide restart button
+            initGame();
+
+            // Mark all rows as dummy solved if we don't have progress
+            if (!progress) {
+                // Just to make it look somewhat done or we just leave it empty and show modal
+            } else {
+                restoreProgress(progress);
+            }
+
+            const modal = document.getElementById('victory-modal');
+            modal.classList.remove('hidden');
+            document.getElementById('restart-btn').style.display = 'none';
+            return;
+        }
+
+        if (progress) {
+            initGame();
+            restoreProgress(progress);
+        } else {
+            initGame();
+        }
+    });
+
+    function restoreProgress(progressArr) {
+        if (!Array.isArray(progressArr)) return;
+
+        progressArr.forEach((word, rowIndex) => {
+            if (word) {
+                const rowContainer = gameBoard.querySelector(`.row-container[data-index="${rowIndex}"]`);
+                if (rowContainer) {
+                    const wordRow = rowContainer.querySelector('.word-row');
+                    const inputs = Array.from(wordRow.querySelectorAll('.cell'));
+
+                    for (let i = 0; i < word.length; i++) {
+                        if (i < inputs.length) {
+                            inputs[i].value = word[i];
+                        }
+                    }
+                    setRowSuccess(rowIndex);
+                }
+            }
+        });
+    }
+
     function initGame() {
         gameBoard.innerHTML = '';
         ROW_LENGTHS.forEach((length, rowIndex) => {
@@ -76,6 +141,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleInput(e) {
+        if (!hasStarted) {
+            hasStarted = true;
+            sendToParent({ type: "rebus:started" });
+        }
+
         const input = e.target;
         const row = parseInt(input.dataset.row);
         const col = parseInt(input.dataset.col);
@@ -193,6 +263,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Success!
             setRowSuccess(rowIndex);
             
+            // Send progress
+            sendProgress();
+
             // Check win condition
             checkWinCondition();
 
@@ -237,11 +310,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function sendProgress() {
+        if (!isIframe) return;
+
+        const progressArr = ROW_LENGTHS.map((_, rowIndex) => {
+            const rowContainer = gameBoard.querySelector(`.row-container[data-index="${rowIndex}"]`);
+            if (!rowContainer) return null;
+
+            const wordRow = rowContainer.querySelector('.word-row');
+            if (wordRow.classList.contains('success')) {
+                const inputs = Array.from(wordRow.querySelectorAll('.cell'));
+                return inputs.map(input => input.value).join('');
+            }
+            return null;
+        });
+
+        sendToParent({
+            type: "rebus:progress",
+            data: progressArr
+        });
+    }
+
     function checkWinCondition() {
         const successfulRows = document.querySelectorAll('.word-row.success');
         if (successfulRows.length === ROW_LENGTHS.length) {
+            if (!isRebusSolved) {
+                isRebusSolved = true;
+                sendToParent({ type: "rebus:solved" });
+            }
             const modal = document.getElementById('victory-modal');
             modal.classList.remove('hidden');
+
+            if (isIframe) {
+                document.getElementById('restart-btn').style.display = 'none';
+            }
         }
     }
 
@@ -251,5 +353,11 @@ document.addEventListener('DOMContentLoaded', () => {
         initGame();
     });
 
-    initGame();
+    // Initial load for non-iframe context
+    // If it's in iframe, initGame will be called when rebus:init is received
+    setTimeout(() => {
+        if (!isIframe) {
+            initGame();
+        }
+    }, 100); // Small delay to wait for postMessage if it's an iframe
 });

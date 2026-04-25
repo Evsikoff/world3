@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Test Host</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+        iframe { width: 800px; height: 600px; border: 2px solid #ccc; margin-top: 20px; }
+        #logs { width: 800px; height: 200px; background: #f0f0f0; border: 1px solid #999; padding: 10px; overflow-y: scroll; margin-top: 20px;}
+        .log-entry { margin-bottom: 5px; font-family: monospace; }
+        .controls { margin-top: 20px; display: flex; gap: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>Parent App Simulator</h1>
+
+    <div class="controls">
+        <button id="btn-init-new">Send init (New)</button>
+        <button id="btn-init-progress">Send init (With Progress)</button>
+        <button id="btn-init-solved">Send init (Solved)</button>
+    </div>
+
+    <iframe id="game-frame" src="/index.html"></iframe>
+
+    <div id="logs"></div>
+
+    <script>
+        const logsDiv = document.getElementById('logs');
+        const iframe = document.getElementById('game-frame');
+
+        function log(msg) {
+            const el = document.createElement('div');
+            el.className = 'log-entry';
+            el.textContent = `[${new Date().toISOString().split('T')[1].slice(0,-1)}] ${msg}`;
+            logsDiv.appendChild(el);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        window.addEventListener('message', (e) => {
+            log(`Received: ${JSON.stringify(e.data)}`);
+
+            // Mirror back some messages if needed, though mostly we just listen
+        });
+
+        document.getElementById('btn-init-new').addEventListener('click', () => {
+            log('Sending rebus:init (new)');
+            iframe.contentWindow.postMessage({
+                type: "rebus:init",
+                rebusId: "test-123",
+                solved: false,
+                progress: null
+            }, "*");
+        });
+
+        document.getElementById('btn-init-progress').addEventListener('click', () => {
+            log('Sending rebus:init (with progress)');
+            iframe.contentWindow.postMessage({
+                type: "rebus:init",
+                rebusId: "test-123",
+                solved: false,
+                progress: ["УМ", "УХО", null, null, null, null, null, null, null, null, null]
+            }, "*");
+        });
+
+        document.getElementById('btn-init-solved').addEventListener('click', () => {
+            log('Sending rebus:init (solved)');
+            iframe.contentWindow.postMessage({
+                type: "rebus:init",
+                rebusId: "test-123",
+                solved: true,
+                progress: null
+            }, "*");
+        });
+    </script>
+</body>
+</html>
