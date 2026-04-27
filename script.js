@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const ROW_LENGTHS = [2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2];
+    const ROW_LENGTHS = [3, 5, 7, 9, 11, 9, 7, 5, 3];
+    const VERTICAL_WORD = 'ОТГАДАЙТЕ';
     const gameBoard = document.getElementById('game-board');
 
     let isIframe = false;
@@ -67,9 +68,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function getLockedIndex(rowIndex) {
+        return Math.floor(ROW_LENGTHS[rowIndex] / 2);
+    }
+
     function initGame() {
         gameBoard.innerHTML = '';
         ROW_LENGTHS.forEach((length, rowIndex) => {
+            const lockedIndex = getLockedIndex(rowIndex);
+
             const rowContainer = document.createElement('div');
             rowContainer.className = 'row-container';
             rowContainer.dataset.index = rowIndex;
@@ -82,13 +89,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 input.type = 'text';
                 input.className = 'cell';
                 input.maxLength = 1;
+                input.autocomplete = 'off';
+                input.spellcheck = false;
                 input.dataset.row = rowIndex;
                 input.dataset.col = i;
 
-                if (i === 0) {
-                    input.value = 'У';
+                if (i === lockedIndex) {
+                    input.value = VERTICAL_WORD[rowIndex];
                     input.classList.add('locked');
                     input.readOnly = true;
+                    input.tabIndex = -1;
+                } else {
+                    input.addEventListener('focus', () => input.select());
+                    input.addEventListener('click', () => input.select());
                 }
 
                 input.addEventListener('keydown', handleKeyDown);
@@ -123,20 +136,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const col = parseInt(input.dataset.col);
         const wordRow = input.closest('.word-row');
         const inputs = Array.from(wordRow.querySelectorAll('.cell'));
+        const lockedIndex = getLockedIndex(row);
 
         if (e.key === 'Backspace') {
-            if (input.value === '' && col > 1) {
+            if (input.value === '' && col > 0) {
                 e.preventDefault();
-                inputs[col - 1].focus();
-                inputs[col - 1].value = '';
+                let prevCol = col - 1;
+                if (prevCol === lockedIndex) prevCol--;
+                if (prevCol >= 0) {
+                    inputs[prevCol].focus();
+                    inputs[prevCol].value = '';
+                }
             }
-            clearRowError(row); // Clear error state on edit
-        } else if (e.key === 'ArrowLeft' && col > 1) {
+            clearRowError(row);
+        } else if (e.key === 'ArrowLeft') {
             e.preventDefault();
-            inputs[col - 1].focus();
-        } else if (e.key === 'ArrowRight' && col < inputs.length - 1) {
+            let target = col - 1;
+            if (target === lockedIndex) target--;
+            if (target >= 0) inputs[target].focus();
+        } else if (e.key === 'ArrowRight') {
             e.preventDefault();
-            inputs[col + 1].focus();
+            let target = col + 1;
+            if (target === lockedIndex) target++;
+            if (target < inputs.length) inputs[target].focus();
         }
     }
 
@@ -151,7 +173,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const col = parseInt(input.dataset.col);
         const wordRow = input.closest('.word-row');
         const inputs = Array.from(wordRow.querySelectorAll('.cell'));
-        
+        const lockedIndex = getLockedIndex(row);
+
         clearRowError(row);
 
         // Allow only Cyrillic characters
@@ -162,28 +185,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         input.value = input.value.toUpperCase();
 
-        // Auto-advance
-        if (col < inputs.length - 1) {
-            inputs[col + 1].focus();
+        // Auto-advance, skipping the locked center cell
+        let nextCol = col + 1;
+        if (nextCol === lockedIndex) nextCol++;
+
+        if (nextCol < inputs.length) {
+            inputs[nextCol].focus();
         } else {
-            // Trigger validation if it's the last cell
             validateRow(row);
         }
     }
 
     function clearRow(rowIndex) {
+        const lockedIndex = getLockedIndex(rowIndex);
         const rowContainer = gameBoard.querySelector(`.row-container[data-index="${rowIndex}"]`);
         const wordRow = rowContainer.querySelector('.word-row');
         const inputs = Array.from(wordRow.querySelectorAll('.cell'));
-        
+
         inputs.forEach((input, index) => {
-            if (index > 0) {
+            if (index !== lockedIndex) {
                 input.value = '';
             }
         });
-        
+
         clearRowError(rowIndex);
-        inputs[1].focus();
+        inputs[0].focus();
     }
 
     function clearRowError(rowIndex) {
