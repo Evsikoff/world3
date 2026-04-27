@@ -177,13 +177,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         clearRowError(row);
 
-        // Allow only Cyrillic characters
-        if (!/^[а-яА-ЯёЁ]$/.test(input.value)) {
+        // Allow empty string to pass without advancing (e.g. from backspace)
+        if (input.value === '') {
+            return;
+        }
+
+        // Allow only Cyrillic characters, stripping any extraneous characters (like spaces added by mobile keyboards)
+        const match = input.value.match(/[а-яА-ЯёЁ]/);
+        if (!match) {
             input.value = '';
             return;
         }
 
-        input.value = input.value.toUpperCase();
+        input.value = match[0].toUpperCase();
 
         // Auto-advance, skipping the locked center cell
         let nextCol = col + 1;
